@@ -1,5 +1,6 @@
 import copy
 import time
+from datetime import datetime, timezone
 from collections.abc import Callable, Iterator
 from typing import Any, cast
 
@@ -379,6 +380,20 @@ def _ticket_to_document(
     )
 
 
+def _parse_created_after(value: str | None) -> datetime | None:
+    """Accepts 'YYYY-MM-DD' or any ISO-8601 datetime; returns an aware UTC datetime."""
+    if not value or not value.strip():
+        return None
+    raw = value.strip()
+    if len(raw) == 10:
+        dt = datetime.strptime(raw, "%Y-%m-%d")
+    else:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 class ZendeskConnectorCheckpoint(ConnectorCheckpoint):
     # We use cursor-based paginated retrieval for articles
     after_cursor_articles: str | None
@@ -397,12 +412,40 @@ class ZendeskConnector(
         self,
         content_type: str = "articles",
         calls_per_minute: int | None = None,
+        tickets_created_after: str | None = None,
+        exclude_ticket_statuses: list[str] | None = None,
     ) -> None:
         self.content_type = content_type
         self.subdomain = ""
         # Fetch all tags ahead of time
         self.content_tags: dict[str, str] = {}
         self.calls_per_minute = calls_per_minute
+
+        # Ticket-only filters. Zendesk's incremental export returns every ticket
+        # whose `updated_at` moved, so bulk automations touching old/closed
+        # tickets would otherwise re-ingest them on every poll.
+        self.tickets_created_after = _parse_created_after(tickets_created_after)
+        self.exclude_ticket_statuses = {
+            s.strip().lower() for s in (exclude_ticket_statuses or []) if s.strip()
+        }
+
+    def _should_skip_ticket(self, ticket: dict[str, Any]) -> bool:
+        """Apply the created-after / status filters to a raw Zendesk ticket."""
+        status = (ticket.get("status") or "").lower()
+        if status == "deleted":
+            return True
+        if status and status in self.exclude_ticket_statuses:
+            return True
+        if self.tickets_created_after is not None:
+            created_at = ticket.get("created_at")
+            if created_at:
+                try:
+                    if time_str_to_utc(created_at) < self.tickets_created_after:
+                        return True
+                except Exception:
+                    # Unparseable timestamp: keep the ticket rather than drop it.
+                    pass
+        return False
 
     def load_credentials(self, credentials: dict[str, Any]) -> dict[str, Any] | None:
         # Subdomain is actually the whole URL
@@ -536,7 +579,7 @@ class ZendeskConnector(
         has_more = ticket_response.has_more
         next_start_time = ticket_response.meta["end_time"]
         for ticket in tickets:
-            if ticket.get("status") == "deleted":
+            if self._should_skip_ticket(ticket):
                 continue
 
             try:
@@ -609,6 +652,8 @@ class ZendeskConnector(
                 self.client, start_time=int(start) if start else None
             )
             for ticket in tickets:
+                if self._should_skip_ticket(ticket):
+                    continue
                 created_at = ticket.get("created_at")
                 slim_doc_batch.append(
                     SlimDocument(
