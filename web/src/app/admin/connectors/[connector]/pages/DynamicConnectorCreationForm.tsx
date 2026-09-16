@@ -45,6 +45,13 @@ export default function DynamicConnectionForm({
     }
   }, [initialConnectorName, setFieldValue, values]);
 
+  const isFieldVisible = (
+    field: ConnectionConfiguration["values"][number]
+  ): boolean =>
+    !field.hidden &&
+    (!field.visibleCondition ||
+      field.visibleCondition(values, currentCredential));
+
   return (
     <>
       {config.subtext && (
@@ -60,7 +67,7 @@ export default function DynamicConnectionForm({
 
       {config.values.map(
         (field) =>
-          !field.hidden && (
+          isFieldVisible(field) && (
             <RenderField
               key={field.name}
               field={field}
@@ -88,7 +95,7 @@ export default function DynamicConnectionForm({
             {showAdvancedOptions &&
               config.advanced_values.map(
                 (field) =>
-                  !field.hidden && (
+                  isFieldVisible(field) && (
                     <RenderField
                       key={field.name}
                       field={field}

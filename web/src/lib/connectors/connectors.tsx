@@ -1462,7 +1462,8 @@ For example, specifying .*-alerts as a "channel to exclude" will cause the conne
         name: "tickets_created_after",
         optional: true,
         description:
-          "Tickets only. Zendesk's incremental export returns any ticket whose updated_at changed, including old closed tickets touched by bulk automations. Tickets created before this date are skipped and pruned.",
+          "Zendesk's incremental export returns any ticket whose updated_at changed, including old closed tickets touched by bulk automations. Tickets created before this date are skipped and pruned.",
+        visibleCondition: (values) => values.content_type === "tickets",
       },
       {
         type: "list",
@@ -1471,7 +1472,8 @@ For example, specifying .*-alerts as a "channel to exclude" will cause the conne
         name: "exclude_ticket_statuses",
         optional: true,
         description:
-          "Tickets only. Skip tickets in these statuses (e.g. closed, solved). Case-insensitive.",
+          "Skip tickets in these statuses (e.g. closed, solved). Case-insensitive.",
+        visibleCondition: (values) => values.content_type === "tickets",
       },
     ],
   },
