@@ -1512,6 +1512,25 @@ For example, specifying .*-alerts as a "channel to exclude" will cause the conne
         description:
           "Restricts how many Zendesk API calls this connector can make per minute (applies only to this connector). See defaults: https://developer.zendesk.com/api-reference/introduction/rate-limits/",
       },
+      {
+        type: "text",
+        label: "Only index tickets created after (YYYY-MM-DD)",
+        name: "tickets_created_after",
+        optional: true,
+        description:
+          "Zendesk's incremental export returns any ticket whose updated_at changed, including old closed tickets touched by bulk automations. Tickets created before this date are skipped and pruned.",
+        visibleCondition: (values) => values.content_type === "tickets",
+      },
+      {
+        type: "list",
+        query: "Ticket statuses to exclude:",
+        label: "Exclude ticket statuses",
+        name: "exclude_ticket_statuses",
+        optional: true,
+        description:
+          "Skip tickets in these statuses (e.g. closed, solved). Case-insensitive.",
+        visibleCondition: (values) => values.content_type === "tickets",
+      },
     ],
   },
   linear: {
