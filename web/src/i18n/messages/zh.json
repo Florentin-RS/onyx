@@ -2343,6 +2343,7 @@
         "excludedChannels": "排除的频道",
         "includeBotMessages": "包含机器人消息",
         "jiraProjectUrl": "Jira 项目 URL",
+        "memberChannelsOnly": "仅已加入的频道",
         "multipleRepos": "多个仓库",
         "pageId": "页面 ID",
         "realm": "领域",

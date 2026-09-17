@@ -2343,6 +2343,7 @@
         "excludedChannels": "Ausgeschlossene Kanäle",
         "includeBotMessages": "Bot-Nachrichten einschließen",
         "jiraProjectUrl": "Jira-Projekt-URL",
+        "memberChannelsOnly": "Nur Mitgliedskanäle",
         "multipleRepos": "mehrere Repositories",
         "pageId": "Seiten-ID",
         "realm": "Realm",

@@ -423,12 +423,22 @@ def filter_channels(
     include_regex_enabled: bool,
     channels_to_exclude: list[str] | None = None,
     exclude_regex_enabled: bool = False,
+    member_channels_only: bool = False,
 ) -> list[ChannelType]:
     filtered_channels = all_channels
 
+    # membership is applied first so include validation only sees channels
+    # the bot can read without joining
+    if member_channels_only:
+        filtered_channels = [
+            channel for channel in filtered_channels if channel["is_member"]
+        ]
+
     if channels_to_include:
         if not include_regex_enabled:
-            _validate_channels_exist(all_channels, channels_to_include)
+            _validate_channels_exist(
+                filtered_channels, channels_to_include, member_channels_only
+            )
         filtered_channels = [
             channel
             for channel in filtered_channels
@@ -459,15 +469,22 @@ def _channel_name_matches(
 
 
 def _validate_channels_exist(
-    all_channels: list[ChannelType], channels_to_include: list[str]
+    all_channels: list[ChannelType],
+    channels_to_include: list[str],
+    member_channels_only: bool = False,
 ) -> None:
     # fail loudly on an unknown channel so the user knows one of the
     # channels they've specified is typo'd or private
     all_channel_names = {channel["name"] for channel in all_channels}
+    scope = (
+        "among channels the bot is a member of"
+        if member_channels_only
+        else "in workspace"
+    )
     for channel in channels_to_include:
         if channel not in all_channel_names:
             raise ValueError(
-                f"Channel '{channel}' not found in workspace. "
+                f"Channel '{channel}' not found {scope}. "
                 f"Available channels (Showing {len(all_channel_names)} of "
                 f"{min(len(all_channel_names), SlackConnector.MAX_CHANNELS_TO_LOG)}): "
                 f"{list(itertools.islice(all_channel_names, SlackConnector.MAX_CHANNELS_TO_LOG))}"
@@ -642,6 +659,7 @@ def _get_all_doc_ids(
     include_regex_enabled: bool = False,
     channels_to_exclude: list[str] | None = None,
     exclude_regex_enabled: bool = False,
+    member_channels_only: bool = False,
     msg_filter_func: Callable[
         [MessageType], SlackMessageFilterReason | None
     ] = default_msg_filter,
@@ -671,6 +689,7 @@ def _get_all_doc_ids(
         include_regex_enabled,
         channels_to_exclude,
         exclude_regex_enabled,
+        member_channels_only,
     )
     user_cache: dict[str, BasicExpertInfo | None] = {}
 
@@ -847,6 +866,9 @@ class SlackConnector(
         # if specified, will treat the excluded channel strings as
         # regexes, and will skip channels that fully match the regexes
         exclude_channel_regex_enabled: bool = False,
+        # if True, only channels the bot has already been added to are indexed;
+        # the connector will not join any other public channel
+        member_channels_only: bool = False,
         # if True, messages from bots/apps will be indexed instead of filtered out
         include_bot_messages: bool = False,
         batch_size: int = INDEX_BATCH_SIZE,
@@ -857,6 +879,7 @@ class SlackConnector(
         self.channel_regex_enabled = channel_regex_enabled
         self.exclude_channels = exclude_channels
         self.exclude_channel_regex_enabled = exclude_channel_regex_enabled
+        self.member_channels_only = member_channels_only
         self.include_bot_messages = include_bot_messages
         self.msg_filter_func = (
             _bot_inclusive_msg_filter if include_bot_messages else default_msg_filter
@@ -1062,6 +1085,7 @@ class SlackConnector(
             include_regex_enabled=self.channel_regex_enabled,
             channels_to_exclude=self.exclude_channels,
             exclude_regex_enabled=self.exclude_channel_regex_enabled,
+            member_channels_only=self.member_channels_only,
             msg_filter_func=self.msg_filter_func,
             callback=callback,
             workspace_url=self.workspace_url,
@@ -1116,6 +1140,7 @@ class SlackConnector(
                 self.channel_regex_enabled,
                 self.exclude_channels,
                 self.exclude_channel_regex_enabled,
+                self.member_channels_only,
             )
             logger.info(
                 "Channels - initial checkpoint: all=%s post_filtering=%s",

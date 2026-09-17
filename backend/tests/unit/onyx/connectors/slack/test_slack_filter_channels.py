@@ -11,17 +11,17 @@ from onyx.connectors.slack.connector import _validate_channel_regexes, filter_ch
 from onyx.connectors.slack.models import ChannelType
 
 
-def _channel(name: str) -> ChannelType:
-    base: dict[str, Any] = {"id": f"C-{name}", "name": name}
+def _channel(name: str, is_member: bool = True) -> ChannelType:
+    base: dict[str, Any] = {"id": f"C-{name}", "name": name, "is_member": is_member}
     return cast(ChannelType, base)
 
 
 CHANNELS = [
     _channel("general"),
     _channel("support"),
-    _channel("infra-alerts"),
+    _channel("infra-alerts", is_member=False),
     _channel("billing-alerts"),
-    _channel("deploy-notifications"),
+    _channel("deploy-notifications", is_member=False),
 ]
 
 
@@ -119,6 +119,39 @@ def test_exclude_regex_is_full_match() -> None:
 def test_include_validation_still_raises_for_unknown_channel() -> None:
     with pytest.raises(ValueError, match="not found in workspace"):
         filter_channels(CHANNELS, ["typo-channel"], False)
+
+
+def test_member_channels_only_keeps_joined_channels() -> None:
+    result = filter_channels(CHANNELS, None, False, member_channels_only=True)
+    assert _names(result) == ["general", "support", "billing-alerts"]
+
+
+def test_member_channels_only_is_off_by_default() -> None:
+    assert filter_channels(CHANNELS, None, False) == CHANNELS
+
+
+def test_member_channels_only_combines_with_include_regex() -> None:
+    result = filter_channels(CHANNELS, [".*-alerts"], True, member_channels_only=True)
+    assert _names(result) == ["billing-alerts"]
+
+
+def test_member_channels_only_combines_with_exclude() -> None:
+    result = filter_channels(
+        CHANNELS,
+        None,
+        False,
+        channels_to_exclude=["support"],
+        exclude_regex_enabled=False,
+        member_channels_only=True,
+    )
+    assert _names(result) == ["general", "billing-alerts"]
+
+
+def test_member_channels_only_rejects_included_channel_bot_is_not_in() -> None:
+    with pytest.raises(
+        ValueError, match="not found among channels the bot is a member of"
+    ):
+        filter_channels(CHANNELS, ["infra-alerts"], False, member_channels_only=True)
 
 
 def test_validate_channel_regexes_accepts_valid_patterns() -> None:

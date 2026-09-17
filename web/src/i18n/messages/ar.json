@@ -2343,6 +2343,7 @@
         "excludedChannels": "القنوات المستبعدة",
         "includeBotMessages": "تضمين رسائل الروبوتات",
         "jiraProjectUrl": "عنوان URL لمشروع Jira",
+        "memberChannelsOnly": "قنوات العضوية فقط",
         "multipleRepos": "مستودعات متعددة",
         "pageId": "معرّف الصفحة",
         "realm": "النطاق",
