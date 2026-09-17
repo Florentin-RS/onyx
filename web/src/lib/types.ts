@@ -650,6 +650,7 @@ export enum ValidSources {
   Airtable = "airtable",
   Gitbook = "gitbook",
   Highspot = "highspot",
+  Mindtickle = "mindtickle",
   DrupalWiki = "drupal_wiki",
   Imap = "imap",
   Bitbucket = "bitbucket",

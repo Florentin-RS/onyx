@@ -44,6 +44,7 @@ import {
   SvgLoopio,
   SvgLumapps,
   SvgMediawiki,
+  SvgMindtickle,
   SvgNotion,
   SvgOracle,
   SvgOutline,
@@ -401,6 +402,11 @@ export const SOURCE_METADATA_MAP: SourceMap = {
   loopio: {
     icon: SvgLoopio,
     displayName: "Loopio",
+    category: SourceCategory.Sales,
+  },
+  mindtickle: {
+    icon: SvgMindtickle,
+    displayName: "Mindtickle",
     category: SourceCategory.Sales,
   },
 

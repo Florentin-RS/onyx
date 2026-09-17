@@ -299,6 +299,7 @@ class DocumentSource(str, Enum):
     AIRTABLE = "airtable"
     HIGHSPOT = "highspot"
     DRUPAL_WIKI = "drupal_wiki"
+    MINDTICKLE = "mindtickle"
 
     IMAP = "imap"
     BITBUCKET = "bitbucket"
@@ -821,6 +822,7 @@ DocumentSourceDescription: dict[DocumentSource, str] = {
     DocumentSource.AIRTABLE: "Structured data and records",
     DocumentSource.HIGHSPOT: "Sales enablement content and pitches",
     DocumentSource.DRUPAL_WIKI: "Knowledge base pages and content",
+    DocumentSource.MINDTICKLE: "Sales enablement assets from Asset Hubs",
     DocumentSource.IMAP: "Email messages and threads",
     DocumentSource.TESTRAIL: "Test cases and QA management",
     DocumentSource.BRAINTRUST: "LLM eval experiments, datasets, and prompts",
