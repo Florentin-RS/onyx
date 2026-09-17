@@ -1072,7 +1072,7 @@ except ValueError:
         _CELERY_WORKER_LIGHT_PREFETCH_MULTIPLIER_DEFAULT
     )
 
-_CELERY_WORKER_DOCPROCESSING_CONCURRENCY_DEFAULT = 6
+_CELERY_WORKER_DOCPROCESSING_CONCURRENCY_DEFAULT = 8
 try:
     env_value = os.environ.get("CELERY_WORKER_DOCPROCESSING_CONCURRENCY")
     if not env_value:
@@ -1130,7 +1130,9 @@ OLD_INDEX_RECLAIM_DELETE_BATCH_SIZE = max(
     1, _non_negative_int_env("OLD_INDEX_RECLAIM_DELETE_BATCH_SIZE", 10_000)
 )
 
-_CELERY_WORKER_DOCFETCHING_CONCURRENCY_DEFAULT = 1
+# Number of connectors that fetch documents at the same time. Each slot runs one
+# connector in its own subprocess, so memory grows with this value.
+_CELERY_WORKER_DOCFETCHING_CONCURRENCY_DEFAULT = 4
 try:
     env_value = os.environ.get("CELERY_WORKER_DOCFETCHING_CONCURRENCY")
     if not env_value:
