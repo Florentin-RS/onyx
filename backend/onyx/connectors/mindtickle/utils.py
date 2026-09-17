@@ -1,8 +1,7 @@
 import json
-from collections.abc import Iterable
-from typing import Any
+from collections.abc import Callable, Iterable
+from typing import Any, TypeVar
 
-from onyx.connectors.mindtickle.models import MindtickleHub
 from onyx.file_processing.html_utils import parse_html_page_basic
 
 # `asset_type` values seen live are `MEDIA_TYPE_DOCUMENT_<KIND>`; the docs also
@@ -20,9 +19,11 @@ _ASSET_TYPE_EXTENSIONS: dict[str, str] = {
 }
 _ASSET_TYPE_PREFIX = "MEDIA_TYPE_"
 
+T = TypeVar("T")
+
 
 def html_to_text(html: str | None) -> str:
-    """Strip Mindtickle's HTML descriptions down to text."""
+    """Strip Mindtickle's HTML fragments down to text."""
     if not html or not html.strip():
         return ""
     return parse_html_page_basic(html).strip()
@@ -83,22 +84,24 @@ def transcript_to_text(raw: bytes) -> str:
     return ""
 
 
-def filter_hubs(
-    hubs: list[MindtickleHub],
-    hub_names: list[str] | None,
-    excluded_hub_names: list[str] | None,
-) -> list[MindtickleHub]:
-    """Apply the connector's hub allow-list and exclude-list, case-insensitively."""
-    allowed = {name.strip().lower() for name in hub_names or [] if name.strip()}
-    excluded = {
-        name.strip().lower() for name in excluded_hub_names or [] if name.strip()
-    }
-    selected: list[MindtickleHub] = []
-    for hub in hubs:
-        key = hub.title.strip().lower()
+def filter_by_name(
+    items: list[T],
+    name_of: Callable[[T], str],
+    allowed_names: list[str] | None,
+    excluded_names: list[str] | None,
+) -> list[T]:
+    """Apply an allow-list and an exclude-list of names, case-insensitively.
+
+    An empty allow-list means everything is allowed.
+    """
+    allowed = {name.strip().lower() for name in allowed_names or [] if name.strip()}
+    excluded = {name.strip().lower() for name in excluded_names or [] if name.strip()}
+    selected: list[T] = []
+    for item in items:
+        key = name_of(item).strip().lower()
         if allowed and key not in allowed:
             continue
         if key in excluded:
             continue
-        selected.append(hub)
+        selected.append(item)
     return selected

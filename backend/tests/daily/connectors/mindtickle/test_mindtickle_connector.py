@@ -18,6 +18,8 @@ pytestmark = pytest.mark.secrets(
 # A small, stable hub on the test learning site. Scoping to it keeps the test fast.
 _TEST_HUB_NAME = "BDR Battlecards"
 _TARGET_ASSET_TITLE_FRAGMENT = "Open Reel"
+# A one-module series whose module is an Articulate Rise course.
+_TEST_SERIES_NAME = "BD BattleCards"
 
 
 def _credentials(test_secrets: dict[TestSecret, str]) -> dict[str, str]:
@@ -34,7 +36,9 @@ def _credentials(test_secrets: dict[TestSecret, str]) -> dict[str, str]:
 def mindtickle_connector(
     test_secrets: dict[TestSecret, str],
 ) -> MindtickleConnector:
-    connector = MindtickleConnector(hub_names=[_TEST_HUB_NAME], batch_size=5)
+    connector = MindtickleConnector(
+        hub_names=[_TEST_HUB_NAME], index_training_modules=False, batch_size=5
+    )
     connector.load_credentials(_credentials(test_secrets))
     return connector
 
@@ -117,10 +121,48 @@ def test_mindtickle_validate_settings(
     mindtickle_connector.validate_connector_settings()
 
 
+def test_mindtickle_training_module_text(
+    test_secrets: dict[TestSecret, str],
+) -> None:
+    connector = MindtickleConnector(
+        index_asset_hub=False, series_names=[_TEST_SERIES_NAME]
+    )
+    connector.load_credentials(_credentials(test_secrets))
+
+    documents = _collect_documents(connector)
+
+    assert documents
+    for document in documents:
+        assert document.id.startswith("MINDTICKLE_MODULE_")
+        assert document.metadata["kind"] == "training_module"
+        assert document.metadata["series"] == [_TEST_SERIES_NAME]
+        assert document.doc_updated_at is None
+    battle_cards = [d for d in documents if "Battle Cards" in d.semantic_identifier]
+    assert battle_cards, "expected the BD Battle Cards module"
+    section = battle_cards[0].sections[0]
+    assert section.link is not None and "jitredirectsso" in section.link
+    # The Rise course text is far longer than the module description.
+    assert section.text is not None and len(section.text) > 1000
+    assert "OpenReel" in section.text
+
+
+def test_mindtickle_validate_rejects_unknown_series(
+    test_secrets: dict[TestSecret, str],
+) -> None:
+    connector = MindtickleConnector(
+        index_asset_hub=False, series_names=["this series does not exist"]
+    )
+    connector.load_credentials(_credentials(test_secrets))
+    with pytest.raises(ConnectorValidationError):
+        connector.validate_connector_settings()
+
+
 def test_mindtickle_validate_rejects_unknown_hub(
     test_secrets: dict[TestSecret, str],
 ) -> None:
-    connector = MindtickleConnector(hub_names=["this hub does not exist"])
+    connector = MindtickleConnector(
+        hub_names=["this hub does not exist"], index_training_modules=False
+    )
     connector.load_credentials(_credentials(test_secrets))
     with pytest.raises(ConnectorValidationError):
         connector.validate_connector_settings()

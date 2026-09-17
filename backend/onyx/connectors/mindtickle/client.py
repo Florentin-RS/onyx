@@ -13,14 +13,23 @@ from onyx.connectors.mindtickle.models import (
     MindtickleAssetMedia,
     MindtickleAssetSummary,
     MindtickleHub,
+    MindtickleLearningObject,
+    MindtickleModule,
+    MindtickleSeries,
 )
 from onyx.utils.logger import setup_logger
 from onyx.utils.retry_after import parse_retry_after_seconds
 
 logger = setup_logger()
 
-# Asset Hub endpoints live on the "API3" hosts. The auth token must be issued by
-# the same host that serves the later calls. The global host is tried first.
+# Mindtickle serves its APIs from two host groups. Training content and user
+# management use the standard hosts; Asset Hub content uses the "API3" hosts. A
+# bearer token is only valid on the host that issued it. The global host is tried
+# first; a learning site hosted in the US answers 404 there.
+MINDTICKLE_API_BASE_URLS: tuple[str, ...] = (
+    "https://api.mindtickle.com",
+    "https://api.prod-us.mindtickle.com",
+)
 MINDTICKLE_API3_BASE_URLS: tuple[str, ...] = (
     "https://api3.prod.mindtickle.com",
     "https://api3.prod-us.mindtickle.com",
@@ -31,6 +40,10 @@ _HUBS_PATH = "/api/assethub/v1/hubs"
 _HUB_ASSETS_PATH = "/api/assethub/v1/hub/{hub_id}/assets"
 _ASSET_PATH = "/api/assethub/v1/asset/{asset_id}"
 _ASSET_MEDIA_PATH = "/api/assethub/v1/assetmedia/{asset_id}"
+_SERIES_LIST_PATH = "/api/v2/series/list"
+_SERIES_MODULES_PATH = "/api/v2/series/{series_id}/list"
+_MODULE_DETAILS_PATH = "/api/v2/jit/series/{series_id}/entity/{module_id}"
+_MODULE_LEARNING_OBJECTS_PATH = "/api/v2/entity/{module_id}/learning_objects"
 
 # Server-side maximum page size.
 _PAGE_SIZE = 100
@@ -68,44 +81,52 @@ def normalize_learning_site_url(value: str) -> str:
     return host.strip().lower()
 
 
-class MindtickleClient:
-    """Thin client for the Mindtickle Asset Hub content APIs."""
+@rate_limit_builder(max_calls=_MAX_REQUESTS_PER_SECOND, period=1)
+def _send(
+    session: requests.Session,
+    method: str,
+    url: str,
+    body: dict[str, Any] | None,
+    token: str,
+    timeout: int,
+) -> requests.Response:
+    """Every authenticated API call goes through here so one limiter covers both
+    host groups (the platform quota is per account, not per host)."""
+    return session.request(
+        method,
+        url,
+        json=body,
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=timeout,
+    )
+
+
+class _ApiHost:
+    """Token lifecycle and region detection for one Mindtickle host group."""
 
     def __init__(
         self,
+        base_urls: tuple[str, ...],
+        session: requests.Session,
         api_key: str,
         secret_key: str,
         learning_site_url: str,
-        base_urls: tuple[str, ...] = MINDTICKLE_API3_BASE_URLS,
-        timeout: int = REQUEST_TIMEOUT_SECONDS,
+        timeout: int,
     ) -> None:
-        if not api_key or not secret_key or not learning_site_url:
-            raise ValueError(
-                "Mindtickle API key, secret key and learning site URL are required"
-            )
+        self._base_urls = base_urls
+        self._session = session
         self._api_key = api_key
         self._secret_key = secret_key
-        self._learning_site_url = normalize_learning_site_url(learning_site_url)
-        self._base_urls = base_urls
+        self._learning_site_url = learning_site_url
         self._timeout = timeout
-
-        self._session = requests.Session()
-        self._base_url: str | None = None
+        self.base_url: str | None = None
         self._token: str | None = None
         self._token_expires_at: float = 0.0
 
-    @property
-    def base_url(self) -> str:
-        self._ensure_token()
-        if self._base_url is None:
-            raise MindtickleAuthenticationError("Mindtickle base URL not resolved")
-        return self._base_url
-
-    # ------------------------------------------------------------------ auth
-
-    def _ensure_token(self) -> str:
+    def token(self, force_refresh: bool = False) -> str:
         if (
-            self._token is not None
+            not force_refresh
+            and self._token is not None
             and time.monotonic()
             < self._token_expires_at - _TOKEN_REFRESH_MARGIN_SECONDS
         ):
@@ -118,7 +139,7 @@ class MindtickleClient:
         When the region is not yet known every base URL is tried. A wrong region
         answers 404 "Learning Site not found!". Once a host works it is kept.
         """
-        candidates = (self._base_url,) if self._base_url else self._base_urls
+        candidates = (self.base_url,) if self.base_url else self._base_urls
         body = {
             "api_key": self._api_key,
             "secret_key": self._secret_key,
@@ -145,7 +166,7 @@ class MindtickleClient:
                         "Mindtickle auth response did not include a token"
                     )
                 expires_in = float(payload.get("expires_in") or 3600)
-                self._base_url = base_url
+                self.base_url = base_url
                 self._token = token
                 self._token_expires_at = time.monotonic() + expires_in
                 logger.info("Authenticated with Mindtickle at %s", base_url)
@@ -175,30 +196,21 @@ class MindtickleClient:
             status_code=404,
         )
 
-    # -------------------------------------------------------------- requests
-
-    @rate_limit_builder(max_calls=_MAX_REQUESTS_PER_SECOND, period=1)
-    def _send(self, url: str, body: dict[str, Any], token: str) -> requests.Response:
-        return self._session.post(
-            url,
-            json=body,
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=self._timeout,
-        )
-
-    def _post(self, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
-        """POST a JSON body and return the parsed JSON object.
+    def request(
+        self, method: str, path: str, body: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Send one API call and return the parsed JSON object.
 
         Handles token refresh on 401 and Retry-After on 429.
         """
-        token = self._ensure_token()
+        token = self.token()
+        assert self.base_url is not None
         url = self.base_url + path
-        payload = body if body is not None else {}
         refreshed = False
 
         for _ in range(_MAX_RATE_LIMIT_WAITS):
             try:
-                response = self._send(url, payload, token)
+                response = _send(self._session, method, url, body, token, self._timeout)
             except RequestException as e:
                 raise MindtickleClientError(f"Request to {path} failed: {e}") from e
 
@@ -216,8 +228,7 @@ class MindtickleClient:
 
             if response.status_code == 401 and not refreshed:
                 refreshed = True
-                self._token = None
-                token = self._ensure_token()
+                token = self.token(force_refresh=True)
                 continue
 
             if response.status_code >= 400:
@@ -241,13 +252,40 @@ class MindtickleClient:
             status_code=429,
         )
 
+
+class MindtickleClient:
+    """Client for the Mindtickle Asset Hub and Training Content APIs."""
+
+    def __init__(
+        self,
+        api_key: str,
+        secret_key: str,
+        learning_site_url: str,
+        api_base_urls: tuple[str, ...] = MINDTICKLE_API_BASE_URLS,
+        api3_base_urls: tuple[str, ...] = MINDTICKLE_API3_BASE_URLS,
+        timeout: int = REQUEST_TIMEOUT_SECONDS,
+    ) -> None:
+        if not api_key or not secret_key or not learning_site_url:
+            raise ValueError(
+                "Mindtickle API key, secret key and learning site URL are required"
+            )
+        self._session = requests.Session()
+        site = normalize_learning_site_url(learning_site_url)
+        self._training_host = _ApiHost(
+            api_base_urls, self._session, api_key, secret_key, site, timeout
+        )
+        self._asset_hub_host = _ApiHost(
+            api3_base_urls, self._session, api_key, secret_key, site, timeout
+        )
+
+    # ------------------------------------------------------------- Asset Hub
+
     def _paginate(
         self,
         path: str,
         items_key: str,
         total_key: str,
         order_field: str,
-        extra_body: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Walk a skip/limit list endpoint to the end.
 
@@ -262,9 +300,7 @@ class MindtickleClient:
                 "limit": _PAGE_SIZE,
                 "order_by": {"field": order_field, "order": "ASC"},
             }
-            if extra_body:
-                body.update(extra_body)
-            data = self._post(path, body)
+            data = self._asset_hub_host.request("POST", path, body)
             page = data.get(items_key) or []
             if not isinstance(page, list):
                 raise MindtickleClientError(
@@ -281,8 +317,6 @@ class MindtickleClient:
                 or (total is not None and skip >= total)
             ):
                 return items
-
-    # ------------------------------------------------------------- endpoints
 
     def list_hubs(self) -> list[MindtickleHub]:
         raw_hubs = self._paginate(
@@ -303,12 +337,67 @@ class MindtickleClient:
         return [MindtickleAssetSummary.model_validate(asset) for asset in raw_assets]
 
     def get_asset(self, asset_id: str) -> MindtickleAssetDetails:
-        data = self._post(_ASSET_PATH.format(asset_id=asset_id))
+        data = self._asset_hub_host.request(
+            "POST", _ASSET_PATH.format(asset_id=asset_id), {}
+        )
         return MindtickleAssetDetails.model_validate(data)
 
     def get_asset_media(self, asset_id: str) -> MindtickleAssetMedia:
-        data = self._post(_ASSET_MEDIA_PATH.format(asset_id=asset_id))
+        data = self._asset_hub_host.request(
+            "POST", _ASSET_MEDIA_PATH.format(asset_id=asset_id), {}
+        )
         return MindtickleAssetMedia.model_validate(data)
+
+    # ------------------------------------------------------ Training content
+
+    @staticmethod
+    def _hits(data: dict[str, Any], path: str) -> list[dict[str, Any]]:
+        hits = data.get("hits") or []
+        if not isinstance(hits, list):
+            raise MindtickleClientError(f"Unexpected 'hits' payload from {path}")
+        return [hit for hit in hits if isinstance(hit, dict)]
+
+    def list_series(self) -> list[MindtickleSeries]:
+        data = self._training_host.request("GET", _SERIES_LIST_PATH)
+        return [
+            MindtickleSeries.model_validate(hit)
+            for hit in self._hits(data, _SERIES_LIST_PATH)
+        ]
+
+    def list_series_modules(self, series_id: str) -> list[MindtickleModule]:
+        path = _SERIES_MODULES_PATH.format(series_id=series_id)
+        data = self._training_host.request("GET", path)
+        return [MindtickleModule.model_validate(hit) for hit in self._hits(data, path)]
+
+    def get_module_details(self, series_id: str, module_id: str) -> MindtickleModule:
+        path = _MODULE_DETAILS_PATH.format(series_id=series_id, module_id=module_id)
+        return MindtickleModule.model_validate(self._training_host.request("GET", path))
+
+    def get_module_learning_objects(
+        self, module_id: str
+    ) -> list[MindtickleLearningObject]:
+        """Learning objects of a published Course, Quick Update or Assessment.
+
+        The docs call the list `learning_contents`; the live API returns
+        `learningObjects`. Unsupported module types and drafts answer HTTP 400,
+        which the caller treats as "no learning objects".
+        """
+        path = _MODULE_LEARNING_OBJECTS_PATH.format(module_id=module_id)
+        data = self._training_host.request("GET", path)
+        raw = data.get("learningObjects")
+        if raw is None:
+            raw = data.get("learning_contents") or []
+        if not isinstance(raw, list):
+            raise MindtickleClientError(
+                f"Unexpected learning object payload from {path}"
+            )
+        return [
+            MindtickleLearningObject.model_validate(item)
+            for item in raw
+            if isinstance(item, dict)
+        ]
+
+    # -------------------------------------------------------------- downloads
 
     def download(self, url: str, max_bytes: int) -> bytes | None:
         """Download a signed media URL. Returns None when the body exceeds max_bytes.
