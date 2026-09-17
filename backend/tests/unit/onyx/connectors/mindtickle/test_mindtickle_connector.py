@@ -17,7 +17,7 @@ from onyx.connectors.mindtickle.models import (
 )
 from onyx.connectors.mindtickle.utils import (
     asset_type_to_extension,
-    filter_hubs,
+    filter_by_name,
     transcript_to_text,
 )
 from onyx.connectors.models import Document, SlimDocument
@@ -68,9 +68,18 @@ def test_filter_hubs_allow_and_exclude() -> None:
         MindtickleHub(id="2", title="Legal Resources"),
         MindtickleHub(id="3", title="Pricing"),
     ]
-    assert [hub.id for hub in filter_hubs(hubs, None, None)] == ["1", "2", "3"]
-    assert [hub.id for hub in filter_hubs(hubs, ["competitive intel "], None)] == ["1"]
-    assert [hub.id for hub in filter_hubs(hubs, None, ["LEGAL RESOURCES"])] == [
+    title = lambda hub: hub.title  # noqa: E731
+    assert [hub.id for hub in filter_by_name(hubs, title, None, None)] == [
+        "1",
+        "2",
+        "3",
+    ]
+    assert [
+        hub.id for hub in filter_by_name(hubs, title, ["competitive intel "], None)
+    ] == ["1"]
+    assert [
+        hub.id for hub in filter_by_name(hubs, title, None, ["LEGAL RESOURCES"])
+    ] == [
         "1",
         "3",
     ]
@@ -91,7 +100,7 @@ def _documents(output: GenerateDocumentsOutput) -> list[Document]:
 
 
 def _connector_with_mock_client() -> tuple[MindtickleConnector, MagicMock]:
-    connector = MindtickleConnector()
+    connector = MindtickleConnector(index_training_modules=False)
     connector.load_credentials(
         {
             "mindtickle_api_key": "key",
@@ -146,6 +155,7 @@ def test_load_from_state_dedupes_assets_across_hubs() -> None:
     shared_doc = by_id["MINDTICKLE_ASSET_a1"]
     assert shared_doc.source == DocumentSource.MINDTICKLE
     assert shared_doc.semantic_identifier == "Asset a1"
+    assert shared_doc.metadata["kind"] == "asset"
     assert shared_doc.metadata["hubs"] == ["Hub One", "Hub Two"]
     assert shared_doc.metadata["attributes"] == ["Resource Type: Guideline"]
     assert shared_doc.metadata["asset_type"] == "MEDIA_TYPE_DOCUMENT_PDF"

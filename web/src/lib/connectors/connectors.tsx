@@ -2040,43 +2040,35 @@ For example, specifying .*-alerts as a "channel to exclude" will cause the conne
     description: "Configure Mindtickle connector",
     values: [
       {
-        type: "tab",
-        name: "mindtickle_scope",
-        label: "Which Asset Hubs should we index?",
-        optional: true,
-        tabs: [
-          {
-            value: "hubs",
-            label: "Specific Hubs",
-            fields: [
-              {
-                type: "list",
-                query: "Enter the hub name(s):",
-                label: "Hub Name(s)",
-                name: "hub_names",
-                optional: false,
-                description:
-                  "Hub titles as shown in Mindtickle. For multiple hubs, enter them one by one.",
-              },
-            ],
-          },
-          {
-            value: "everything",
-            label: "Everything",
-            fields: [
-              {
-                type: "string_tab",
-                label: "Everything",
-                name: "everything",
-                description:
-                  "This connector will index every published asset in every active Asset Hub.",
-              },
-            ],
-          },
-        ],
+        type: "checkbox",
+        query: "Index Asset Hub assets?",
+        label: "Asset Hubs",
+        name: "index_asset_hub",
+        description:
+          "Index every published asset (documents, decks, videos) in the selected Asset Hubs.",
+        default: true,
+      },
+      {
+        type: "checkbox",
+        query: "Index training modules?",
+        label: "Training Modules",
+        name: "index_training_modules",
+        description:
+          "Index the content of published courses, quick updates and assessments in the selected series, including authored HTML courses, uploaded files, video transcripts and quiz text.",
+        default: true,
       },
     ],
     advanced_values: [
+      {
+        type: "list",
+        query: "Enter hub name(s) to index:",
+        label: "Hub Name(s)",
+        name: "hub_names",
+        optional: true,
+        description:
+          "Hub titles as shown in Mindtickle. Leave empty to index every active hub.",
+        visibleCondition: (values) => values.index_asset_hub !== false,
+      },
       {
         type: "list",
         query: "Enter hub name(s) to skip:",
@@ -2085,6 +2077,27 @@ For example, specifying .*-alerts as a "channel to exclude" will cause the conne
         optional: true,
         description:
           "Hubs listed here are never indexed, for example hubs that hold legal or finance files.",
+        visibleCondition: (values) => values.index_asset_hub !== false,
+      },
+      {
+        type: "list",
+        query: "Enter series name(s) to index:",
+        label: "Series Name(s)",
+        name: "series_names",
+        optional: true,
+        description:
+          "Series names as shown in Mindtickle. Leave empty to index every series.",
+        visibleCondition: (values) => values.index_training_modules !== false,
+      },
+      {
+        type: "list",
+        query: "Enter series name(s) to skip:",
+        label: "Excluded Series Name(s)",
+        name: "excluded_series_names",
+        optional: true,
+        description:
+          "Series listed here are never indexed, for example vendor tutorials or test series.",
+        visibleCondition: (values) => values.index_training_modules !== false,
       },
     ],
   },
@@ -2387,8 +2400,12 @@ export interface LoopioConfig {
 }
 
 export interface MindtickleConfig {
+  index_asset_hub?: boolean;
+  index_training_modules?: boolean;
   hub_names?: string[];
   excluded_hub_names?: string[];
+  series_names?: string[];
+  excluded_series_names?: string[];
 }
 
 export interface FileConfig {
