@@ -1308,6 +1308,15 @@ For example, specifying .*-alerts as a "channel to exclude" will cause the conne
       },
       {
         type: "checkbox",
+        query: "Only index channels the bot is a member of?",
+        label: "Member Channels Only",
+        name: "member_channels_only",
+        description:
+          "If enabled, only channels the Onyx bot has already been added to are indexed. The connector will not join any other public channel. Add the bot to a channel with /invite to include it.",
+        optional: true,
+      },
+      {
+        type: "checkbox",
         query: "Include bot messages?",
         label: "Include Bot Messages",
         name: "include_bot_messages",
@@ -2417,6 +2426,7 @@ export interface SlackConfig {
   channel_regex_enabled?: boolean;
   exclude_channels?: string[];
   exclude_channel_regex_enabled?: boolean;
+  member_channels_only?: boolean;
   include_bot_messages?: boolean;
 }
 

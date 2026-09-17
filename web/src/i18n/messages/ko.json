@@ -2343,6 +2343,7 @@
         "excludedChannels": "제외된 채널",
         "includeBotMessages": "봇 메시지 포함",
         "jiraProjectUrl": "Jira 프로젝트 URL",
+        "memberChannelsOnly": "멤버 채널만",
         "multipleRepos": "여러 리포지토리",
         "pageId": "페이지 ID",
         "realm": "렐름",

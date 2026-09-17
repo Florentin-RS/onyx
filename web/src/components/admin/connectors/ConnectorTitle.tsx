@@ -101,6 +101,9 @@ export const ConnectorTitle = ({
     ) {
       additionalMetadata.set(t("excludeChannelRegexEnabled"), t("enabledTrue"));
     }
+    if (typedConnector.connector_specific_config.member_channels_only) {
+      additionalMetadata.set(t("memberChannelsOnly"), t("enabledTrue"));
+    }
     if (typedConnector.connector_specific_config.include_bot_messages) {
       additionalMetadata.set(t("includeBotMessages"), t("enabledTrue"));
     }
