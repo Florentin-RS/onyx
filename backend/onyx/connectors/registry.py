@@ -212,6 +212,10 @@ CONNECTOR_CLASS_MAP = {
         module_path="onyx.connectors.highspot.connector",
         class_name="HighspotConnector",
     ),
+    DocumentSource.MINDTICKLE: ConnectorMapping(
+        module_path="onyx.connectors.mindtickle.connector",
+        class_name="MindtickleConnector",
+    ),
     DocumentSource.DRUPAL_WIKI: ConnectorMapping(
         module_path="onyx.connectors.drupal_wiki.connector",
         class_name="DrupalWikiConnector",

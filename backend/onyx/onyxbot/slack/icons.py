@@ -57,6 +57,8 @@ _SOURCE_IMAGE_FILENAMES: Mapping[DocumentSource, str] = {
     DocumentSource.AIRTABLE: "Airtable.png",
     DocumentSource.HIGHSPOT: "Highspot.png",
     DocumentSource.DRUPAL_WIKI: "Drupal.png",
+    # Mindtickle has no PNG asset yet; the lookup is a direct index.
+    DocumentSource.MINDTICKLE: _DEFAULT_SOURCE_IMAGE_FILENAME,
     DocumentSource.IMAP: "Mail.png",
     DocumentSource.OUTLOOK: "Mail.png",
     DocumentSource.BITBUCKET: "Bitbucket.png",

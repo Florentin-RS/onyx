@@ -311,6 +311,12 @@ export interface HighspotCredentialJson {
   highspot_secret: string;
 }
 
+export interface MindtickleCredentialJson {
+  mindtickle_api_key: string;
+  mindtickle_secret_key: string;
+  mindtickle_learning_site_url: string;
+}
+
 export interface DrupalWikiCredentialJson {
   drupal_wiki_api_token: string;
 }
@@ -375,6 +381,7 @@ type CredentialTemplateMap = Record<ValidSources, object | null> & {
   gmail: Partial<GmailCredentialJson>;
   gitbook: GitbookCredentialJson;
   highspot: HighspotCredentialJson;
+  mindtickle: MindtickleCredentialJson;
   imap: ImapCredentialJson;
   testrail: TestRailCredentialJson;
 };
@@ -628,6 +635,11 @@ export const credentialTemplates: Record<ValidSources, any> = {
     highspot_key: "",
     highspot_secret: "",
   },
+  mindtickle: {
+    mindtickle_api_key: "",
+    mindtickle_secret_key: "",
+    mindtickle_learning_site_url: "",
+  },
   imap: {
     imap_username: "",
     imap_password: "",
@@ -825,6 +837,11 @@ export const credentialDisplayNames: Record<string, string> = {
   highspot_url: "Highspot URL",
   highspot_key: "Highspot Key",
   highspot_secret: "Highspot Secret",
+
+  // Mindtickle
+  mindtickle_api_key: "Mindtickle API Key",
+  mindtickle_secret_key: "Mindtickle Secret Key",
+  mindtickle_learning_site_url: "Mindtickle Learning Site URL",
 
   // Drupal Wiki
   drupal_wiki_api_token: "Drupal Wiki Personal Access Token",

@@ -2036,6 +2036,58 @@ For example, specifying .*-alerts as a "channel to exclude" will cause the conne
     ],
     advanced_values: [],
   },
+  mindtickle: {
+    description: "Configure Mindtickle connector",
+    values: [
+      {
+        type: "tab",
+        name: "mindtickle_scope",
+        label: "Which Asset Hubs should we index?",
+        optional: true,
+        tabs: [
+          {
+            value: "hubs",
+            label: "Specific Hubs",
+            fields: [
+              {
+                type: "list",
+                query: "Enter the hub name(s):",
+                label: "Hub Name(s)",
+                name: "hub_names",
+                optional: false,
+                description:
+                  "Hub titles as shown in Mindtickle. For multiple hubs, enter them one by one.",
+              },
+            ],
+          },
+          {
+            value: "everything",
+            label: "Everything",
+            fields: [
+              {
+                type: "string_tab",
+                label: "Everything",
+                name: "everything",
+                description:
+                  "This connector will index every published asset in every active Asset Hub.",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    advanced_values: [
+      {
+        type: "list",
+        query: "Enter hub name(s) to skip:",
+        label: "Excluded Hub Name(s)",
+        name: "excluded_hub_names",
+        optional: true,
+        description:
+          "Hubs listed here are never indexed, for example hubs that hold legal or finance files.",
+      },
+    ],
+  },
   imap: {
     description: "Configure Email connector",
     values: [
@@ -2332,6 +2384,11 @@ export interface GongConfig {
 
 export interface LoopioConfig {
   loopio_stack_name?: string;
+}
+
+export interface MindtickleConfig {
+  hub_names?: string[];
+  excluded_hub_names?: string[];
 }
 
 export interface FileConfig {
